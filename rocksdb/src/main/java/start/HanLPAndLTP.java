@@ -1,13 +1,20 @@
 package start;
 
+import com.alibaba.fastjson.JSONObject;
+import com.hankcs.hanlp.HanLP;
+import com.hankcs.hanlp.seg.Segment;
+import com.hankcs.hanlp.seg.common.Term;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertOneModel;
 import db.mongo.Mongodb;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.StringUtils;
 
 import java.io.File;
+import java.io.FileReader;
+import java.io.LineNumberReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -29,7 +36,7 @@ public class HanLPAndLTP {
     private static final int sleepTime = 1000;
 
     /**
-     * 待分词文章队列
+     * 待分词文章路径队列
      */
     private static Queue<String> beanQueue = new LinkedBlockingQueue<>();
 
@@ -41,7 +48,7 @@ public class HanLPAndLTP {
     /**
      * 保存结果最大值
      */
-    private static final int SAVE_QUEUE_MAX = 100;
+    private static final int SAVE_QUEUE_MAX = 1000;
 
     /**
      * 待保存分词结果队列
@@ -53,7 +60,7 @@ public class HanLPAndLTP {
     /**
      * D:/4/bm
      */
-    private static final String readFile = "/data/spark/article";
+    private static final String readFile = "/data/spark/article2";
 
     public static void main(String[] args) {
         try {
@@ -129,15 +136,47 @@ public class HanLPAndLTP {
     private static class Start implements Runnable {
         @Override
         public void run() {
-            try {
-                //2、分句，记录句子数
-                ArrayList<String> sents = new ArrayList<String>();
-//                SplitSentence.splitSentence(sent, sents);
-
-                //3、分词，记录分词速度，词性转换，记录词性
-
-            } catch (Exception e) {
-                logger.error("读取服务器文件目录异常---》》" + e);
+            while (true) {
+                try {
+                    if (beanQueue != null && beanQueue.size() > 0) {
+                        String path = beanQueue.poll();
+                        if (StringUtils.isNotEmpty(path)) {
+                            FileReader fr = new FileReader(path);
+                            LineNumberReader lnr = new LineNumberReader(fr);
+                            while (lnr.readLine() != null) {
+                                try {
+                                    // 获取文章
+                                    JSONObject jsonObject = JSONObject.parseObject(lnr.readLine());
+                                    String article = jsonObject.getString("aTxt");
+                                    // 分句
+                                    ArrayList<String> sents = sentenceSplit(article);
+                                    for (String sent : sents) {
+                                        Document d = new Document();
+                                        d.put("path", path);
+                                        d.put("aNum", article.length());
+                                        d.put("sentNum", sents.size());
+                                        d.put("sent", sent);
+                                        try {
+                                            // 分词
+                                            d = HanLP(d, sent);
+                                            d = LTP(d, sent);
+                                            d = THULAC(d, sent);
+                                        } catch (Exception e) {
+                                            logger.error("分词文章句子分词异常---》》" + sent + "|" + e);
+                                        }
+                                        insertQueue.add(d);
+                                    }
+                                } catch (Exception e) {
+                                    logger.error("分词文章读取或分句异常---》》" + path + "|" + e);
+                                }
+                            }
+                        }
+                    } else {
+                        Thread.sleep(sleepTime);
+                    }
+                } catch (Exception e) {
+                    logger.error("分词处理异常---》》" + e);
+                }
             }
         }
     }
@@ -151,10 +190,10 @@ public class HanLPAndLTP {
             List<InsertOneModel<Document>> documents = new ArrayList<>();
             while (true) {
                 try {
-                    Document d = insertQueue.poll();
                     if (insertQueue.size() == 0) {
                         Thread.sleep(sleepTime);
                     } else {
+                        Document d = insertQueue.poll();
                         if (d != null) {
                             documents.add(new InsertOneModel<>(d));
                         }
@@ -181,37 +220,95 @@ public class HanLPAndLTP {
     }
 
     /**
-     * 分句，LTP
+     * LTP分句
+     *
+     * @param article
      */
-    private void sentenceSplit() {
-
+    private static ArrayList<String> sentenceSplit(String article) {
+        ArrayList<String> sents = new ArrayList<String>();
+        System.loadLibrary("splitsnt");
+        //SplitSentence.splitSentence(article, sents); fixme
+        return sents;
     }
 
     /**
-     * LTP分词
+     * LTP分词，词性转换（北大）
      *
+     * @param d
      * @param str
      */
-    private void LTP(String str) {
-
+    private static Document LTP(Document d, String str) {
+        long start = System.currentTimeMillis();
+        // fixme 分词
+        long end = System.currentTimeMillis();
+        String[] ls = {};
+        String[] lg1 = {};
+        String[] lg2 = {};
+        // fixme 分词结果处理
+        d.put("lt", end - start);
+        d.put("ls", ls);
+        d.put("lg1", lg1);
+        d.put("lg2", lg2);
+        return d;
     }
 
     /**
-     * HanLP分词
+     * HanLP分词，词性转换（北大）
+     * ht：分词耗时毫秒；hs：分词结果数组；hg1：词性数组；hg2：北大词性数组
      *
+     * @param d
      * @param str
      */
-    private void HanLP(String str) {
+    private static Document HanLP(Document d, String str) {
+        long start = System.currentTimeMillis();
+        Segment segment = HanLP.newSegment();
+        // 自动识别地名，标注为ns:
+        segment.enablePlaceRecognize(true);
+        // 自动识别机构名，标注为nt:
+        segment.enableOrganizationRecognize(true);
+        //开启人名识别
+        segment.enableNameRecognize(true);
+        //开启词性标注
+        segment.enablePartOfSpeechTagging(true);
 
+        List<Term> termList = segment.seg(str);
+        long end = System.currentTimeMillis();
+
+        String[] hs = {};
+        String[] hg1 = {};
+        String[] hg2 = {};
+        for (int i = 0; i < termList.size(); i++) {
+            Term t = termList.get(i);
+            hs[i] = t.word;
+            hg1[i] = t.nature.toString();
+            hg2[i] = t.nature.toString();//fixme 词性转换
+        }
+        d.put("ht", end - start);
+        d.put("hs", hs);
+        d.put("hg1", hg1);
+        d.put("hg2", hg2);
+        return d;
     }
 
     /**
-     * THULAC分词
+     * THULAC分词，词性转换（北大）
      *
+     * @param d
      * @param str
      */
-    private void THULAC(String str) {
-
+    private static Document THULAC(Document d, String str) {
+        long start = System.currentTimeMillis();
+        // fixme 分词
+        long end = System.currentTimeMillis();
+        String[] ts = {};
+        String[] tg1 = {};
+        String[] tg2 = {};
+        // fixme 分词结果处理
+        d.put("tt", end - start);
+        d.put("ts", ts);
+        d.put("tg1", tg1);
+        d.put("tg2", tg2);
+        return d;
     }
 
 
