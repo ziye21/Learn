@@ -42,3 +42,4 @@ build
 out
 conf/segment/
 .idea/
+rocksdb/src/main/resources/db.properties
