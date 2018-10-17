@@ -38,6 +38,8 @@ dependencies {
     compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
     compile group: 'com.linkedin.paldb', name: 'paldb', version: '1.2.0'
     compile group: 'com.google.guava', name: 'guava', version: '19.0'
+
+    compile('com.alibaba:fastjson:1.2.3')
     compile(
             "com.hankcs:hanlp:portable-1.6.1",
             "org.mongodb:bson:3.4.2",
