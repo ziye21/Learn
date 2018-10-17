@@ -1,0 +1,56 @@
+version '0.1'
+
+apply plugin: 'java'
+apply plugin: 'idea'
+
+group = 'Learns'
+archivesBaseName = 'rocksdb'
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+[compileJava, compileTestJava, javadoc]*.options*.encoding = 'UTF-8'
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.3'
+}
+
+idea {
+    module {
+        downloadJavadoc = false
+        downloadSources = false
+    }
+}
+
+sourceSets {
+    main {
+        output.resourcesDir = "bin/classes"
+    }
+}
+
+repositories {
+    mavenCentral()
+    mavenCentral name: "erichseifert.de", artifactUrls: ["http://mvn.erichseifert.de/maven2"]
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile 'org.rocksdb:rocksdbjni:5.7.3'
+    compile 'org.apache.commons:commons-lang3:3.3.1'
+    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+    compile group: 'com.linkedin.paldb', name: 'paldb', version: '1.2.0'
+    compile group: 'com.google.guava', name: 'guava', version: '19.0'
+    compile(
+            "com.hankcs:hanlp:portable-1.6.1",
+            'org.mongodb:bson:3.4.2',
+            'org.mongodb:mongo-java-driver:3.4.2'
+    )
+}
+
+task PalDBTest(type: JavaExec, dependsOn: classes) {
+    main = 'start.PalDBTest'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+task RocksDBTest(type: JavaExec, dependsOn: classes) {
+    main = 'start.RocksDBTest'
+    classpath = sourceSets.main.runtimeClasspath
+}
