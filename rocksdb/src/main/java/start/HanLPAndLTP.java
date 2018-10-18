@@ -1,5 +1,6 @@
 package start;
 
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.hankcs.hanlp.HanLP;
 import com.hankcs.hanlp.seg.Segment;
@@ -8,22 +9,19 @@ import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertOneModel;
 import db.mongo.Mongodb;
 import io.github.yizhiru.thulac4j.POSTagger;
-import io.github.yizhiru.thulac4j.SPChineseTokenizer;
-import io.github.yizhiru.thulac4j.Segmenter;
 import io.github.yizhiru.thulac4j.term.TokenItem;
-import io.github.yizhiru.thulac4j.util.ChineseUtils;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.HttpClientUtil;
 import util.StringUtils;
 
 import java.io.File;
 import java.io.FileReader;
 import java.io.LineNumberReader;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.regex.Pattern;
 
 /**
  * HanLP、LTP、THULAC三种分词情况对比
@@ -71,6 +69,12 @@ public class HanLPAndLTP {
      * 清华分词模型地址
      */
     private static final String THULAC="E:\\workspace-idea\\Learn\\Learns\\rocksdb\\build\\libs\\";
+
+    /**
+     * LTP服务地址
+     */
+    private final static String baseURL = "http://47.96.30.247:9090/ltp";
+
 
     public static void main(String[] args) {
         try {
@@ -159,7 +163,7 @@ public class HanLPAndLTP {
                                     JSONObject jsonObject = JSONObject.parseObject(lnr.readLine());
                                     String article = jsonObject.getString("aTxt");
                                     // 分句
-                                    ArrayList<String> sents = sentenceSplit(article);
+                                    ArrayList<String> sents = sentenceSplit(article,"。|.|!|？|；|;|，|,");
                                     for (String sent : sents) {
                                         Document d = new Document();
                                         d.put("path", path);
@@ -234,10 +238,19 @@ public class HanLPAndLTP {
      *
      * @param article
      */
-    private static ArrayList<String> sentenceSplit(String article) {
+    private static ArrayList<String> sentenceSplit(String article,String regEx) {
         ArrayList<String> sents = new ArrayList<String>();
-        System.loadLibrary("splitsnt");
-        //SplitSentence.splitSentence(article, sents); fixme
+        /*正则表达式：句子结束符*/
+        Pattern p = Pattern.compile(regEx);
+        /*按照句子结束符分割句子*/
+        String[] words = p.split(article);
+        /*将句子结束符连接到相应的句子后*/
+        for(int i=0;i<words.length;i++){
+            String str = words[i].replaceAll("[ ]+", " ");
+            if(!StringUtils.isEmpty(str)){
+                sents.add(words[i]);
+            }
+        }
         return sents;
     }
 
@@ -247,14 +260,26 @@ public class HanLPAndLTP {
      * @param d
      * @param str
      */
-    private static Document LTP(Document d, String str) {
+    private static Document LTP(Document d, String str) throws Exception{
         long start = System.currentTimeMillis();
-        // fixme 分词
+        Map<String, String> params = new HashMap<String, String>();
+        params.put("s", str);
+        params.put("f", "json");
+        params.put("t", "ner");
+        //请求处理任务
+        String strResult = HttpClientUtil.basicPost(baseURL, params);
         long end = System.currentTimeMillis();
-        String[] ls = {};
-        String[] lg1 = {};
-        String[] lg2 = {};
-        // fixme 分词结果处理
+        JSONArray temp = JSONArray.parseArray(strResult);
+        JSONArray jsonArray = temp.getJSONArray(0).getJSONArray(0);
+        String[] ls = new String[jsonArray.size()];
+        String[] lg1 = new String[jsonArray.size()];
+        String[] lg2 = new String[jsonArray.size()];
+        for(int i=0;i<jsonArray.size();i++){
+            JSONObject json = JSONObject.parseObject(jsonArray.getString(i));
+            ls[i] = json.getString("cont");
+            lg1[i] = json.getString("pos");
+            lg2[i] = json.getString("pos");;//fixme 词性转换
+        }
         d.put("lt", end - start);
         d.put("ls", ls);
         d.put("lg1", lg1);
@@ -345,7 +370,5 @@ public class HanLPAndLTP {
         d.put("tg2", tg2);
         return d;
     }
-
-
 
 }
