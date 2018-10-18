@@ -75,7 +75,7 @@ public class HanLPAndLTP {
     public static void main(String[] args) {
         try {
             //1、获取文章路径并记录文章数
-            /*Thread queryDataThread = new Thread(new ReadData());
+            Thread queryDataThread = new Thread(new ReadData());
             queryDataThread.start();
             Thread.sleep(sleepTime);
 
@@ -88,8 +88,7 @@ public class HanLPAndLTP {
 
             //3、分词结果批量保存到mongo
             Thread wordCountThread = new Thread(new SaveResult());
-            wordCountThread.start();*/
-            THULAC(new Document(),"滔滔的流水，向着波士顿湾无声逝去《请问千家万户》,中华人民共和国有内蒙古山西陕西上海五台县太原市真好，崔永元范冰冰都是小人物");
+            wordCountThread.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
