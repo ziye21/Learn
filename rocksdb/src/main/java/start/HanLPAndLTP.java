@@ -163,7 +163,7 @@ public class HanLPAndLTP {
                                     JSONObject jsonObject = JSONObject.parseObject(lnr.readLine());
                                     String article = jsonObject.getString("aTxt");
                                     // 分句
-                                    ArrayList<String> sents = sentenceSplit(article,"。|.|!|？|；|;|，|,");
+                                    ArrayList<String> sents = sentenceSplit(article,"。|!|？|；|;|，|,");
                                     for (String sent : sents) {
                                         Document d = new Document();
                                         d.put("path", path);
