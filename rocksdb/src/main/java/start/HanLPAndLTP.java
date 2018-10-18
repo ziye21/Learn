@@ -7,6 +7,11 @@ import com.hankcs.hanlp.seg.common.Term;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertOneModel;
 import db.mongo.Mongodb;
+import io.github.yizhiru.thulac4j.POSTagger;
+import io.github.yizhiru.thulac4j.SPChineseTokenizer;
+import io.github.yizhiru.thulac4j.Segmenter;
+import io.github.yizhiru.thulac4j.term.TokenItem;
+import io.github.yizhiru.thulac4j.util.ChineseUtils;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,10 +67,15 @@ public class HanLPAndLTP {
      */
     private static final String readFile = "/data/spark/article2";
 
+    /**
+     * 清华分词模型地址
+     */
+    private static final String THULAC="E:\\workspace-idea\\Learn\\Learns\\rocksdb\\build\\libs\\";
+
     public static void main(String[] args) {
         try {
             //1、获取文章路径并记录文章数
-            Thread queryDataThread = new Thread(new ReadData());
+            /*Thread queryDataThread = new Thread(new ReadData());
             queryDataThread.start();
             Thread.sleep(sleepTime);
 
@@ -78,7 +88,8 @@ public class HanLPAndLTP {
 
             //3、分词结果批量保存到mongo
             Thread wordCountThread = new Thread(new SaveResult());
-            wordCountThread.start();
+            wordCountThread.start();*/
+            THULAC(new Document(),"滔滔的流水，向着波士顿湾无声逝去《请问千家万户》,中华人民共和国有内蒙古山西陕西上海五台县太原市真好，崔永元范冰冰都是小人物");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -292,24 +303,50 @@ public class HanLPAndLTP {
 
     /**
      * THULAC分词，词性转换（北大）
-     *
+     * tt：分词耗时毫秒；ts：分词结果数组；tg1：词性数组；tg2：北大词性数组
      * @param d
      * @param str
      */
     private static Document THULAC(Document d, String str) {
         long start = System.currentTimeMillis();
-        // fixme 分词
+        List<TokenItem> wordsList = new ArrayList<TokenItem>();
+        try {
+            String weightPath = THULAC + "models/model_c_model.bin";
+            String featurePath = THULAC + "models/model_c_dat.bin";
+            POSTagger pos = new POSTagger(weightPath, featurePath);
+            //分词器是关闭书名号内黏词，如需开启则
+            //pos.enableTitleWord();
+
+            // 添加自定义词典 注意词典后一次添加会覆盖掉前一次
+            //pos.addUserWords(new ArrayList<String>());
+
+            //繁体转简体：
+            //String s = ChineseUtils.simplified("世界商機大發現");
+
+            //停用词过滤：
+            //pos.enableFilterStopWords();
+            wordsList = pos.tokenize(str);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
         long end = System.currentTimeMillis();
-        String[] ts = {};
-        String[] tg1 = {};
-        String[] tg2 = {};
-        // fixme 分词结果处理
+        String[] ts = new String[wordsList.size()];
+        String[] tg1 = new String[wordsList.size()];
+        String[] tg2 = new String[wordsList.size()];
+        for (int i = 0; i < wordsList.size(); i++) {
+            TokenItem t = wordsList.get(i);
+            ts[i] = t.word;
+            tg1[i] = t.pos;
+            tg2[i] = t.pos;//fixme 词性转换
+        }
         d.put("tt", end - start);
         d.put("ts", ts);
         d.put("tg1", tg1);
         d.put("tg2", tg2);
         return d;
     }
+
 
 
 }
