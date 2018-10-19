@@ -58,6 +58,16 @@ public class HanLPAndLTP {
      */
     private static Queue<Document> insertQueue = new LinkedBlockingQueue<>();
 
+    /**
+     * 处理最大句子数
+     */
+    private static final int SENT_NUM_MAX = 10000;
+
+    /**
+     * 处理句子计数
+     */
+    private static int SENT_NUM = 0;
+
     private static MongoDatabase mongoUnshardDatabase = Mongodb.getUnshardMongoDb().getDatabase("cloud_db");
 
     /**
@@ -123,22 +133,24 @@ public class HanLPAndLTP {
         for (File f : files) {
             str = f.getPath();
             logger.error(str);
-            while (beanQueue.size() >= BEAN_QUEUE_MAX) {
-                try {
-                    Thread.sleep(sleepTime);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+            if (SENT_NUM < SENT_NUM_MAX) {
+                while (beanQueue.size() >= BEAN_QUEUE_MAX) {
+                    try {
+                        Thread.sleep(sleepTime);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
-            }
-            if (f.isDirectory()) {
-                if (f.isFile()) {
-                    beanQueue.add(f.getPath());
+                if (f.isDirectory()) {
+                    if (f.isFile()) {
+                        beanQueue.add(f.getPath());
+                    } else {
+                        getAllFilePaths(f);
+                    }
                 } else {
-                    getAllFilePaths(f);
-                }
-            } else {
-                if (f.isFile()) {
-                    beanQueue.add(str);
+                    if (f.isFile()) {
+                        beanQueue.add(str);
+                    }
                 }
             }
         }
@@ -157,31 +169,33 @@ public class HanLPAndLTP {
                         if (StringUtils.isNotEmpty(path)) {
                             FileReader fr = new FileReader(path);
                             LineNumberReader lnr = new LineNumberReader(fr);
-                            while (lnr.readLine() != null) {
-                                try {
-                                    // 获取文章
-                                    JSONObject jsonObject = JSONObject.parseObject(lnr.readLine());
-                                    String article = jsonObject.getString("aTxt");
-                                    // 分句
-                                    ArrayList<String> sents = sentenceSplit(article,"。|!|？|；|;|，|,");
-                                    for (String sent : sents) {
-                                        Document d = new Document();
-                                        d.put("path", path);
-                                        d.put("aNum", article.length());
-                                        d.put("sentNum", sents.size());
-                                        d.put("sent", sent);
-                                        try {
-                                            // 分词
-                                            d = HanLP(d, sent);
-                                            d = LTP(d, sent);
-                                            d = THULAC(d, sent);
-                                        } catch (Exception e) {
-                                            logger.error("分词文章句子分词异常---》》" + sent + "|" + e);
+                            if (SENT_NUM < SENT_NUM_MAX) {
+                                while (lnr.readLine() != null) {
+                                    try {
+                                        // 获取文章
+                                        JSONObject jsonObject = JSONObject.parseObject(lnr.readLine());
+                                        String article = jsonObject.getString("aTxt");
+                                        // 分句
+                                        ArrayList<String> sents = sentenceSplit(article);
+                                        for (String sent : sents) {
+                                            Document d = new Document();
+                                            d.put("path", path);
+                                            d.put("aNum", article.length());
+                                            d.put("sentNum", sents.size());
+                                            d.put("sent", sent);
+                                            try {
+                                                // 分词
+                                                d = LTP(d, sent);
+                                                d = HanLP(d, sent);
+                                                d = THULAC(d, sent);
+                                                insertQueue.add(d);
+                                            } catch (Exception e) {
+                                                logger.error("分词文章句子分词异常---》》" + sent + "|" + e);
+                                            }
                                         }
-                                        insertQueue.add(d);
+                                    } catch (Exception e) {
+                                        logger.error("分词文章读取或分句异常---》》" + path + "|" + e);
                                     }
-                                } catch (Exception e) {
-                                    logger.error("分词文章读取或分句异常---》》" + path + "|" + e);
                                 }
                             }
                         }
@@ -238,17 +252,20 @@ public class HanLPAndLTP {
      *
      * @param article
      */
-    private static ArrayList<String> sentenceSplit(String article,String regEx) {
+    private static ArrayList<String> sentenceSplit(String article) {
         ArrayList<String> sents = new ArrayList<String>();
-        /*正则表达式：句子结束符*/
-        Pattern p = Pattern.compile(regEx);
-        /*按照句子结束符分割句子*/
-        String[] words = p.split(article);
-        /*将句子结束符连接到相应的句子后*/
-        for(int i=0;i<words.length;i++){
-            String str = words[i].replaceAll("[ ]+", " ");
-            if(!StringUtils.isEmpty(str)){
-                sents.add(words[i]);
+        if (SENT_NUM < SENT_NUM_MAX) {
+            /*正则表达式：句子结束符*/
+            Pattern p = Pattern.compile("。|!|？|；|;");
+            /*按照句子结束符分割句子*/
+            String[] words = p.split(article);
+            /*将句子结束符连接到相应的句子后*/
+            for (int i = 0; i < words.length; i++) {
+                String str = words[i].replaceAll("[ ]+", " ");
+                if (!StringUtils.isEmpty(str)) {
+                    SENT_NUM ++;
+                    sents.add(words[i]);
+                }
             }
         }
         return sents;
