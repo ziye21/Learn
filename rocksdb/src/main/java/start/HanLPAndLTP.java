@@ -51,7 +51,7 @@ public class HanLPAndLTP {
     /**
      * 保存结果最大值
      */
-    private static final int SAVE_QUEUE_MAX = 1000;
+    private static final int SAVE_QUEUE_MAX = 20;
 
     /**
      * 待保存分词结果队列
@@ -61,7 +61,7 @@ public class HanLPAndLTP {
     /**
      * 处理最大句子数
      */
-    private static final int SENT_NUM_MAX = 10000;
+    private static final int SENT_NUM_MAX = 1000;
 
     /**
      * 处理句子计数
@@ -73,7 +73,7 @@ public class HanLPAndLTP {
     /**
      * D:/4/bm
      */
-    private static final String readFile = "/data/spark/article2";
+    private static final String readFile = "D:\\data\\old";
 
     /**
      * 清华分词模型地址
@@ -185,7 +185,7 @@ public class HanLPAndLTP {
                                             d.put("sent", sent);
                                             try {
                                                 // 分词
-                                                d = LTP(d, sent);
+                                                //d = LTP(d, sent);
                                                 d = HanLP(d, sent);
                                                 d = THULAC(d, sent);
                                                 insertQueue.add(d);
@@ -324,11 +324,12 @@ public class HanLPAndLTP {
         segment.enablePartOfSpeechTagging(true);
 
         List<Term> termList = segment.seg(str);
+        System.out.println("HanLP分词:"+termList.toString());
         long end = System.currentTimeMillis();
 
-        String[] hs = {};
-        String[] hg1 = {};
-        String[] hg2 = {};
+        String[] hs = new String[termList.size()];
+        String[] hg1 = new String[termList.size()];
+        String[] hg2 = new String[termList.size()];
         for (int i = 0; i < termList.size(); i++) {
             Term t = termList.get(i);
             hs[i] = t.word;
@@ -367,6 +368,7 @@ public class HanLPAndLTP {
             //停用词过滤：
             //pos.enableFilterStopWords();
             wordsList = pos.tokenize(str);
+            System.out.println("THULAC分词:"+wordsList.toString());
         }catch (Exception e){
             e.printStackTrace();
         }
