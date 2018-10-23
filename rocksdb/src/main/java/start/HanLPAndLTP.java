@@ -7,6 +7,7 @@ import com.hankcs.hanlp.seg.Segment;
 import com.hankcs.hanlp.seg.common.Term;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertOneModel;
+import constant.WordType;
 import db.mongo.Mongodb;
 import io.github.yizhiru.thulac4j.POSTagger;
 import io.github.yizhiru.thulac4j.term.TokenItem;
@@ -51,7 +52,7 @@ public class HanLPAndLTP {
     /**
      * 保存结果最大值
      */
-    private static final int SAVE_QUEUE_MAX = 20;
+    private static final int SAVE_QUEUE_MAX = 100;
 
     /**
      * 待保存分词结果队列
@@ -61,29 +62,39 @@ public class HanLPAndLTP {
     /**
      * 处理最大句子数
      */
-    private static final int SENT_NUM_MAX = 1000;
+    private static final int SENT_NUM_MAX = 10000;
 
     /**
      * 处理句子计数
      */
     private static int SENT_NUM = 0;
 
+    /**
+     * 处理文章计数
+     */
+    private static int ARTICLE_NUM = 0;
+
+    /**
+     * 处理站点数
+     */
+    private static int SITE_NUM = 0;
+
     private static MongoDatabase mongoUnshardDatabase = Mongodb.getUnshardMongoDb().getDatabase("cloud_db");
 
     /**
-     * D:/4/bm
+     * D:\4\sent
      */
-    private static final String readFile = "D:\\data\\old";
+    private static final String readFile = "/data/yangshuai/article2";
 
     /**
-     * 清华分词模型地址
+     * 清华分词模型地址D:\MyWork-Git\THULAC\
      */
-    private static final String THULAC="E:\\workspace-idea\\Learn\\Learns\\rocksdb\\build\\libs\\";
+    private static final String THULAC = "/db/THULAC/";
 
     /**
-     * LTP服务地址
+     * LTP服务地址47.96.30.247:9090
      */
-    private final static String baseURL = "http://47.96.30.247:9090/ltp";
+    private final static String baseURL = "http://172.16.205.54:9090/ltp";
 
 
     public static void main(String[] args) {
@@ -141,14 +152,17 @@ public class HanLPAndLTP {
                         e.printStackTrace();
                     }
                 }
+                logger.info("文章路径：" + f.getPath());
                 if (f.isDirectory()) {
                     if (f.isFile()) {
                         beanQueue.add(f.getPath());
+                        SITE_NUM++;
                     } else {
                         getAllFilePaths(f);
                     }
                 } else {
                     if (f.isFile()) {
+                        SITE_NUM++;
                         beanQueue.add(str);
                     }
                 }
@@ -171,9 +185,10 @@ public class HanLPAndLTP {
                             LineNumberReader lnr = new LineNumberReader(fr);
                             if (SENT_NUM < SENT_NUM_MAX) {
                                 while (lnr.readLine() != null) {
+                                    ARTICLE_NUM ++;
                                     try {
                                         // 获取文章
-                                        JSONObject jsonObject = JSONObject.parseObject(lnr.readLine());
+                                        JSONObject jsonObject = JSONObject.parseObject(lnr.readLine().replace("},", "}"));
                                         String article = jsonObject.getString("aTxt");
                                         // 分句
                                         ArrayList<String> sents = sentenceSplit(article);
@@ -185,7 +200,7 @@ public class HanLPAndLTP {
                                             d.put("sent", sent);
                                             try {
                                                 // 分词
-                                                //d = LTP(d, sent);
+                                                d = LTP(d, sent);
                                                 d = HanLP(d, sent);
                                                 d = THULAC(d, sent);
                                                 insertQueue.add(d);
@@ -237,6 +252,7 @@ public class HanLPAndLTP {
                                 mongoUnshardDatabase.getCollection("z_ys").bulkWrite(documents);
                                 documents.clear();
                             }
+                            logger.info("处理站点数：" + SITE_NUM + "，处理文章数：" + ARTICLE_NUM + "，处理句子数：" + SENT_NUM);
                             System.exit(0);
                         }
                     }
@@ -263,7 +279,7 @@ public class HanLPAndLTP {
             for (int i = 0; i < words.length; i++) {
                 String str = words[i].replaceAll("[ ]+", " ");
                 if (!StringUtils.isEmpty(str)) {
-                    SENT_NUM ++;
+                    SENT_NUM++;
                     sents.add(words[i]);
                 }
             }
@@ -277,7 +293,7 @@ public class HanLPAndLTP {
      * @param d
      * @param str
      */
-    private static Document LTP(Document d, String str) throws Exception{
+    private static Document LTP(Document d, String str) throws Exception {
         long start = System.currentTimeMillis();
         Map<String, String> params = new HashMap<String, String>();
         params.put("s", str);
@@ -288,19 +304,24 @@ public class HanLPAndLTP {
         long end = System.currentTimeMillis();
         JSONArray temp = JSONArray.parseArray(strResult);
         JSONArray jsonArray = temp.getJSONArray(0).getJSONArray(0);
-        String[] ls = new String[jsonArray.size()];
-        String[] lg1 = new String[jsonArray.size()];
-        String[] lg2 = new String[jsonArray.size()];
-        for(int i=0;i<jsonArray.size();i++){
+
+        StringBuffer sb = new StringBuffer();
+        List<String> ls = new ArrayList<>();
+        List<String> lg1 = new ArrayList<>();
+        List<String> lg2 = new ArrayList<>();
+        for (int i = 0; i < jsonArray.size(); i++) {
             JSONObject json = JSONObject.parseObject(jsonArray.getString(i));
-            ls[i] = json.getString("cont");
-            lg1[i] = json.getString("pos");
-            lg2[i] = json.getString("pos");;//fixme 词性转换
+            ls.add(json.getString("cont"));
+            lg1.add(json.getString("pos"));
+            lg2.add(WordType.getByLcode(json.getString("pos")));
+            sb.append(json.getString("cont") + "_" + json.getString("pos") + ", ");
         }
+        logger.info("LTP分词:" + sb.toString());
         d.put("lt", end - start);
         d.put("ls", ls);
         d.put("lg1", lg1);
         d.put("lg2", lg2);
+        d.put("lgc", sb.toString());
         return d;
     }
 
@@ -324,28 +345,30 @@ public class HanLPAndLTP {
         segment.enablePartOfSpeechTagging(true);
 
         List<Term> termList = segment.seg(str);
-        System.out.println("HanLP分词:"+termList.toString());
         long end = System.currentTimeMillis();
+        logger.info("HanLP分词:" + termList.toString());
 
-        String[] hs = new String[termList.size()];
-        String[] hg1 = new String[termList.size()];
-        String[] hg2 = new String[termList.size()];
+        List<String> hs = new ArrayList<>();
+        List<String> hg1 = new ArrayList<>();
+        List<String> hg2 = new ArrayList<>();
         for (int i = 0; i < termList.size(); i++) {
             Term t = termList.get(i);
-            hs[i] = t.word;
-            hg1[i] = t.nature.toString();
-            hg2[i] = t.nature.toString();//fixme 词性转换
+            hs.add(t.word);
+            hg1.add(t.nature.toString());
+            hg2.add(WordType.getByHcode(t.nature.toString()));
         }
         d.put("ht", end - start);
         d.put("hs", hs);
         d.put("hg1", hg1);
         d.put("hg2", hg2);
+        d.put("hgc", termList.toString());
         return d;
     }
 
     /**
      * THULAC分词，词性转换（北大）
      * tt：分词耗时毫秒；ts：分词结果数组；tg1：词性数组；tg2：北大词性数组
+     *
      * @param d
      * @param str
      */
@@ -357,7 +380,7 @@ public class HanLPAndLTP {
             String featurePath = THULAC + "models/model_c_dat.bin";
             POSTagger pos = new POSTagger(weightPath, featurePath);
             //分词器是关闭书名号内黏词，如需开启则
-            //pos.enableTitleWord();
+            pos.enableTitleWord();
 
             // 添加自定义词典 注意词典后一次添加会覆盖掉前一次
             //pos.addUserWords(new ArrayList<String>());
@@ -368,25 +391,26 @@ public class HanLPAndLTP {
             //停用词过滤：
             //pos.enableFilterStopWords();
             wordsList = pos.tokenize(str);
-            System.out.println("THULAC分词:"+wordsList.toString());
-        }catch (Exception e){
+            logger.info("THULAC分词:" + wordsList.toString());
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
         long end = System.currentTimeMillis();
-        String[] ts = new String[wordsList.size()];
-        String[] tg1 = new String[wordsList.size()];
-        String[] tg2 = new String[wordsList.size()];
+        List<String> ts = new ArrayList<>();
+        List<String> tg1 = new ArrayList<>();
+        List<String> tg2 = new ArrayList<>();
         for (int i = 0; i < wordsList.size(); i++) {
             TokenItem t = wordsList.get(i);
-            ts[i] = t.word;
-            tg1[i] = t.pos;
-            tg2[i] = t.pos;//fixme 词性转换
+            ts.add(t.word);
+            tg1.add(t.pos);
+            tg2.add(WordType.getByTcode(t.pos));
         }
         d.put("tt", end - start);
         d.put("ts", ts);
         d.put("tg1", tg1);
         d.put("tg2", tg2);
+        d.put("tgc", wordsList.toString());
         return d;
     }
 
