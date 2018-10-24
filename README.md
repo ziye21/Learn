@@ -1,16 +1,4 @@
 # Learns
 *日常学习测试*
 
-
-### 流程图
-```flow
-st=>start: Start
-e=>end
-op=>operation: My Operation
-cond=>condition: Yes or No?
-
-st->op->cond
-cond(yes)->e
-cond(no)->op
-```
-
+$$	x = \dfrac{-b \pm \sqrt{b^2 - 4ac}}{2a} $$
