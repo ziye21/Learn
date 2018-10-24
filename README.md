@@ -1,6 +1,10 @@
 # Learns
-**日常学习测试**
+*日常学习测试*
 
 
-![tool-editor](https://www.zybuluo.com/static/img/toolbar-editor.png)
+```sequence
+Alice->Bob: Hello Bob, how are you?
+Note right of Bob: Bob thinks
+Bob-->Alice: I am good thanks!
+```
 
