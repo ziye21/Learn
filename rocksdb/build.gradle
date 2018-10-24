@@ -62,3 +62,8 @@ task RocksDBTest(type: JavaExec, dependsOn: classes) {
     main = 'start.RocksDBTest'
     classpath = sourceSets.main.runtimeClasspath
 }
+
+task WordTest(type: JavaExec, dependsOn: classes) {
+    main = 'start.HanLPAndLTP'
+    classpath = sourceSets.main.runtimeClasspath
+}

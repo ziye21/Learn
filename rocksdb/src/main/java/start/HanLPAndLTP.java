@@ -10,6 +10,8 @@ import com.mongodb.client.model.InsertOneModel;
 import constant.WordType;
 import db.mongo.Mongodb;
 import io.github.yizhiru.thulac4j.POSTagger;
+import io.github.yizhiru.thulac4j.SPChineseTokenizer;
+import io.github.yizhiru.thulac4j.Segmenter;
 import io.github.yizhiru.thulac4j.term.TokenItem;
 import org.bson.Document;
 import org.slf4j.Logger;
@@ -47,12 +49,12 @@ public class HanLPAndLTP {
     /**
      * 队列里最大文档数
      */
-    private static final int BEAN_QUEUE_MAX = 100;
+    private static final int BEAN_QUEUE_MAX = 10;
 
     /**
      * 保存结果最大值
      */
-    private static final int SAVE_QUEUE_MAX = 100;
+    private static final int SAVE_QUEUE_MAX = 10;
 
     /**
      * 待保存分词结果队列
@@ -62,7 +64,7 @@ public class HanLPAndLTP {
     /**
      * 处理最大句子数
      */
-    private static final int SENT_NUM_MAX = 10000;
+    private static final int SENT_NUM_MAX = 109;
 
     /**
      * 处理句子计数
@@ -82,19 +84,19 @@ public class HanLPAndLTP {
     private static MongoDatabase mongoUnshardDatabase = Mongodb.getUnshardMongoDb().getDatabase("cloud_db");
 
     /**
-     * D:\4\sent
+     * /data/yangshuai/article2
      */
-    private static final String readFile = "/data/yangshuai/article2";
+    private static final String readFile = "D:\\4\\sent";
 
     /**
-     * 清华分词模型地址D:\MyWork-Git\THULAC\
+     * 清华分词模型地址/db/THULAC/
      */
-    private static final String THULAC = "/db/THULAC/";
+    private static final String THULAC = "D:\\MyWork-Git\\THULAC\\";
 
     /**
-     * LTP服务地址47.96.30.247:9090
+     * LTP服务地址172.16.205.54:9090
      */
-    private final static String baseURL = "http://172.16.205.54:9090/ltp";
+    private final static String baseURL = "http://47.96.30.247:9090/ltp";
 
 
     public static void main(String[] args) {
@@ -241,7 +243,7 @@ public class HanLPAndLTP {
                             documents.add(new InsertOneModel<>(d));
                         }
                         if (documents != null && documents.size() >= SAVE_QUEUE_MAX) {
-                            mongoUnshardDatabase.getCollection("z_ys").bulkWrite(documents);
+                            mongoUnshardDatabase.getCollection("z_ys_2").bulkWrite(documents);
                             documents.clear();
                         }
                     }
@@ -249,7 +251,7 @@ public class HanLPAndLTP {
                         Thread.sleep(sleepTime * 10 * 3);
                         if (beanQueue.size() == 0 && insertQueue.size() == 0) {
                             if (documents != null && documents.size() > 0) {
-                                mongoUnshardDatabase.getCollection("z_ys").bulkWrite(documents);
+                                mongoUnshardDatabase.getCollection("z_ys_2").bulkWrite(documents);
                                 documents.clear();
                             }
                             logger.info("处理站点数：" + SITE_NUM + "，处理文章数：" + ARTICLE_NUM + "，处理句子数：" + SENT_NUM);
@@ -380,7 +382,7 @@ public class HanLPAndLTP {
             String featurePath = THULAC + "models/model_c_dat.bin";
             POSTagger pos = new POSTagger(weightPath, featurePath);
             //分词器是关闭书名号内黏词，如需开启则
-            pos.enableTitleWord();
+//            pos.enableTitleWord();
 
             // 添加自定义词典 注意词典后一次添加会覆盖掉前一次
             //pos.addUserWords(new ArrayList<String>());
@@ -395,8 +397,15 @@ public class HanLPAndLTP {
         } catch (Exception e) {
             e.printStackTrace();
         }
-
         long end = System.currentTimeMillis();
+        long start2 = System.currentTimeMillis();
+        try {
+            List<String> s = Segmenter.segment(str);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        long end2 = System.currentTimeMillis();
+
         List<String> ts = new ArrayList<>();
         List<String> tg1 = new ArrayList<>();
         List<String> tg2 = new ArrayList<>();
@@ -407,6 +416,7 @@ public class HanLPAndLTP {
             tg2.add(WordType.getByTcode(t.pos));
         }
         d.put("tt", end - start);
+        d.put("tt2", end2 - start2);
         d.put("ts", ts);
         d.put("tg1", tg1);
         d.put("tg2", tg2);
