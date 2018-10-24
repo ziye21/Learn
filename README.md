@@ -1,9 +1,6 @@
 # Learns
 **日常学习测试**
 
-| 项目        | 价格   |  数量  |
-| --------   | -----:  | :----:  |
-| 计算机     | \$1600 |   5     |
-| 手机        |   \$12   |   12   |
-| 管线        |    \$1    |  234  |
+
+![tool-editor](https://www.zybuluo.com/static/img/toolbar-editor.png)
 
